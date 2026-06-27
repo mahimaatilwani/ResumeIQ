@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Dashboard — ResumeIQ</title>
+  <link rel="stylesheet" href="../css/style.css"/>
+</head>
+<body>
+
+<nav class="nav" id="main-nav"></nav>
+
+<div class="page-wrap">
+  <div class="page-header flex-between" style="flex-wrap:wrap;gap:1rem">
+    <div>
+      <div class="page-title" id="welcome-title">Welcome back 👋</div>
+      <div class="page-subtitle">Here's an overview of your resume analyses.</div>
+    </div>
+    <a href="upload.html" class="btn btn-primary">+ Upload resume</a>
+  </div>
+
+  <!-- Stats row -->
+  <div class="grid-4 mb-3" id="stats-row">
+    <div class="stat-card">
+      <div class="stat-label">Total Resumes</div>
+      <div class="stat-value" id="stat-total">0</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Best Score</div>
+      <div class="stat-value" id="stat-best" style="color:var(--success)">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Avg Score</div>
+      <div class="stat-value" id="stat-avg">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Latest Score</div>
+      <div class="stat-value" id="stat-latest">—</div>
+    </div>
+  </div>
+
+  <!-- Resume list -->
+  <div class="card" style="padding:0">
+    <div class="flex-between" style="padding:1.25rem 1.5rem;border-bottom:1px solid var(--border-soft)">
+      <h2 style="font-size:1rem;font-weight:600">Your Resumes</h2>
+    </div>
+    <div id="resume-list-wrap">
+      <div id="empty-state" class="text-center" style="padding:4rem 2rem;display:none">
+        <div style="font-size:2.5rem;margin-bottom:1rem">📄</div>
+        <h3 style="margin-bottom:8px">No resumes yet</h3>
+        <p class="text-muted text-sm" style="margin-bottom:1.5rem">Upload your first resume to get started.</p>
+        <a href="upload.html" class="btn btn-primary">Upload resume</a>
+      </div>
+      <div class="table-wrap" id="resume-table-wrap">
+        <table id="resume-table">
+          <thead>
+            <tr>
+              <th>Resume name</th>
+              <th>Uploaded</th>
+              <th>ATS Score</th>
+              <th>Status</th>
+              <th style="text-align:right">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="resume-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+
+<!-- Delete confirm modal -->
+<div class="modal-overlay hidden" id="delete-modal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeDeleteModal()">✕</button>
+    <h3 style="margin-bottom:8px">Delete resume?</h3>
+    <p class="text-muted text-sm" style="margin-bottom:1.5rem">
+      This will permanently delete the resume and its analysis report. This cannot be undone.
+    </p>
+    <div class="flex gap-2">
+      <button class="btn btn-danger btn-full" onclick="confirmDelete()">Delete</button>
+      <button class="btn btn-outline btn-full" onclick="closeDeleteModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script src="../js/auth.js"></script>
+<script src="../js/resume.js"></script>
+<script src="../js/utils.js"></script>
+<script>
+  if (!Auth.requireAuth()) throw new Error('not auth');
+
+  const session = Auth.getSession();
+  document.getElementById('welcome-title').textContent = `Welcome back, ${session.name.split(' ')[0]} 👋`;
+
+  injectNav();
+
+  let deleteTarget = null;
+
+  function load() {
+    const resumes = ResumeDB.getResumesByUser(session.userId);
+    const tbody = document.getElementById('resume-tbody');
+    const emptyState = document.getElementById('empty-state');
+    const tableWrap = document.getElementById('resume-table-wrap');
+
+    // stats
+    const scores = resumes.filter(r => r.ats_score !== null).map(r => r.ats_score);
+    document.getElementById('stat-total').textContent = resumes.length;
+    document.getElementById('stat-best').textContent = scores.length ? Math.max(...scores) : '—';
+    document.getElementById('stat-avg').textContent = scores.length ? Math.round(scores.reduce((a,b)=>a+b,0)/scores.length) : '—';
+    document.getElementById('stat-latest').textContent = scores.length ? scores[0] : '—';
+
+    if (!resumes.length) {
+      emptyState.style.display = 'block';
+      tableWrap.style.display = 'none';
+      return;
+    }
+
+    emptyState.style.display = 'none';
+    tableWrap.style.display = 'block';
+
+    tbody.innerHTML = resumes.map(r => {
+      const score = r.ats_score;
+      const scoreHtml = score !== null
+        ? `<span style="font-weight:600;color:${scoreColor(score)}">${score}</span><span class="text-muted text-xs">/100</span>`
+        : '<span class="text-muted text-xs">Analyzing…</span>';
+      const badgeHtml = score !== null
+        ? `<span class="badge ${scoreBadgeClass(score)}">${scoreLabel(score)}</span>`
+        : '<span class="badge badge-cyan">Pending</span>';
+
+      return `<tr>
+        <td>
+          <div style="font-weight:500">${r.resume_name}</div>
+        </td>
+        <td class="text-muted text-sm">${formatDate(r.upload_date)}</td>
+        <td>${scoreHtml}</td>
+        <td>${badgeHtml}</td>
+        <td style="text-align:right">
+          <div class="flex gap-1" style="justify-content:flex-end">
+            ${score !== null ? `<a href="report.html?id=${r.resume_id}" class="btn btn-outline btn-sm">View report</a>` : ''}
+            <button class="btn btn-danger btn-sm" onclick="openDeleteModal('${r.resume_id}')">Delete</button>
+          </div>
+        </td>
+      </tr>`;
+    }).join('');
+  }
+
+  function openDeleteModal(id) {
+    deleteTarget = id;
+    document.getElementById('delete-modal').classList.remove('hidden');
+  }
+
+  function closeDeleteModal() {
+    deleteTarget = null;
+    document.getElementById('delete-modal').classList.add('hidden');
+  }
+
+  function confirmDelete() {
+    if (!deleteTarget) return;
+    ResumeDB.deleteResume(deleteTarget);
+    closeDeleteModal();
+    showToast('Resume deleted.', 'success');
+    load();
+  }
+
+  load();
+</script>
+</body>
+</html>

@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Upload Resume — ResumeIQ</title>
+  <link rel="stylesheet" href="../css/style.css"/>
+</head>
+<body>
+
+<nav class="nav" id="main-nav"></nav>
+
+<div class="page-wrap" style="max-width:760px">
+  <div class="page-header">
+    <div class="page-title">Upload Your Resume</div>
+    <div class="page-subtitle">Paste your resume text, or upload a .txt file to get an ATS score.</div>
+  </div>
+
+  <!-- API key notice -->
+  <div id="api-notice" class="alert alert-info mb-2">
+    🤖 <strong>AI suggestions:</strong> Enter your Anthropic API key in
+    <a href="profile.html">Profile → Settings</a> to enable Claude-powered tips.
+    Without it, rule-based suggestions will still work.
+  </div>
+
+  <!-- Step 1: name + upload method -->
+  <div class="card mb-2" id="step-1">
+    <h3 style="font-size:1rem;margin-bottom:1.25rem;font-weight:600">Resume details</h3>
+
+    <div class="form-group">
+      <label class="form-label">Resume name <span style="color:var(--danger)">*</span></label>
+      <input type="text" id="resume-name" class="form-input" placeholder="e.g. Software Engineer Resume v2"/>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Upload method</label>
+      <div class="flex gap-2" style="margin-bottom:0">
+        <button class="btn btn-outline" id="tab-paste" onclick="setTab('paste')">Paste text</button>
+        <button class="btn btn-ghost" id="tab-file" onclick="setTab('file')">Upload file (.txt)</button>
+      </div>
+    </div>
+
+    <!-- Paste tab -->
+    <div id="pane-paste">
+      <div class="form-group">
+        <label class="form-label">Resume text</label>
+        <textarea id="resume-text" class="form-input" rows="14"
+          style="resize:vertical;font-family:monospace;font-size:0.85rem"
+          placeholder="Paste your full resume content here…"></textarea>
+        <div class="form-hint" id="char-count">0 characters</div>
+      </div>
+    </div>
+
+    <!-- File tab -->
+    <div id="pane-file" class="hidden">
+      <div class="upload-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
+        <div class="upload-zone-icon">📁</div>
+        <h3>Click to browse or drag & drop</h3>
+        <p>Supports .txt files up to 2 MB</p>
+        <input type="file" id="file-input" accept=".txt,.text" class="hidden" onchange="handleFile(this)"/>
+      </div>
+      <div id="file-info" class="hidden mt-2">
+        <div class="alert alert-success">
+          <div>
+            <div style="font-weight:500" id="file-name"></div>
+            <div class="text-xs mt-1" id="file-size"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="upload-error" class="alert alert-danger hidden mt-2"></div>
+
+    <button class="btn btn-primary btn-full btn-lg mt-2" id="analyze-btn" onclick="analyzeResume()">
+      Analyze resume →
+    </button>
+  </div>
+
+  <!-- Tips -->
+  <div class="card" style="border-color:rgba(0,212,255,0.2)">
+    <h3 style="font-size:0.9rem;font-weight:600;margin-bottom:0.75rem;color:var(--cyan)">💡 Tips for a better score</h3>
+    <ul style="list-style:none;display:flex;flex-direction:column;gap:6px">
+      <li class="text-sm text-muted">✓ Include contact info: email, phone, LinkedIn, GitHub</li>
+      <li class="text-sm text-muted">✓ Add clear section headings: Education, Experience, Skills, Projects</li>
+      <li class="text-sm text-muted">✓ List 8–12 technical skills relevant to your target role</li>
+      <li class="text-sm text-muted">✓ Use action verbs and include dates for all experiences</li>
+      <li class="text-sm text-muted">✓ Keep length between 300–800 words for best formatting score</li>
+    </ul>
+  </div>
+</div>
+
+<div id="loading-overlay" class="hidden">
+  <div class="spinner" style="width:36px;height:36px"></div>
+  <p id="loading-msg">Analyzing your resume…</p>
+</div>
+<div id="toast-container"></div>
+
+<script src="../js/auth.js"></script>
+<script src="../js/resume.js"></script>
+<script src="../js/analyzer.js"></script>
+<script src="../js/utils.js"></script>
+<script>
+  if (!Auth.requireAuth()) throw new Error('not auth');
+  injectNav();
+
+  const session = Auth.getSession();
+  let activeTab = 'paste';
+  let fileText = null;
+
+  // hide API notice if key set
+  if (Config.hasApiKey()) {
+    document.getElementById('api-notice').classList.add('hidden');
+  }
+
+  // char counter
+  document.getElementById('resume-text').addEventListener('input', e => {
+    document.getElementById('char-count').textContent = `${e.target.value.length.toLocaleString()} characters`;
+  });
+
+  function setTab(tab) {
+    activeTab = tab;
+    document.getElementById('pane-paste').classList.toggle('hidden', tab !== 'paste');
+    document.getElementById('pane-file').classList.toggle('hidden', tab !== 'file');
+    document.getElementById('tab-paste').className = 'btn ' + (tab === 'paste' ? 'btn-outline' : 'btn-ghost');
+    document.getElementById('tab-file').className  = 'btn ' + (tab === 'file'  ? 'btn-outline' : 'btn-ghost');
+  }
+
+  function handleFile(input) {
+    const file = input.files[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      showToast('File too large. Max 2 MB.', 'error');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = e => {
+      fileText = e.target.result;
+      document.getElementById('file-name').textContent = file.name;
+      document.getElementById('file-size').textContent = `${(file.size/1024).toFixed(1)} KB · ${fileText.length.toLocaleString()} characters`;
+      document.getElementById('file-info').classList.remove('hidden');
+    };
+    reader.readAsText(file);
+  }
+
+  // drag & drop
+  const dropZone = document.getElementById('drop-zone');
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (file) {
+      const fakeInput = { files: [file] };
+      handleFile(fakeInput);
+    }
+  });
+
+  async function analyzeResume() {
+    const name = document.getElementById('resume-name').value.trim();
+    const errBox = document.getElementById('upload-error');
+    errBox.classList.add('hidden');
+
+    if (!name) {
+      errBox.textContent = 'Please enter a resume name.';
+      errBox.classList.remove('hidden');
+      return;
+    }
+
+    let text = '';
+    if (activeTab === 'paste') {
+      text = document.getElementById('resume-text').value.trim();
+    } else {
+      text = fileText || '';
+    }
+
+    if (text.length < 50) {
+      errBox.textContent = 'Resume content is too short. Please paste or upload your full resume.';
+      errBox.classList.remove('hidden');
+      return;
+    }
+
+    document.getElementById('analyze-btn').disabled = true;
+    showLoading('Scoring your resume…');
+
+    try {
+      // 1. save resume
+      const resume = ResumeDB.addResume(session.userId, name, text);
+
+      // 2. run local scoring
+      const result = Analyzer.score(text);
+      const ruleTips = Analyzer.ruleSuggestions(result);
+
+      // 3. try AI suggestions
+      let aiTips = [];
+      if (Config.hasApiKey()) {
+        try {
+          document.getElementById('loading-msg').textContent = 'Getting AI suggestions…';
+          aiTips = await Analyzer.aiSuggestions(text, result);
+        } catch(e) {
+          console.warn('AI suggestions failed:', e);
+          showToast('AI suggestions unavailable. Showing rule-based tips.', 'info');
+        }
+      }
+
+      const suggestions = aiTips.length ? aiTips : ruleTips;
+
+      // 4. save report
+      const report = {
+        resume_id: resume.resume_id,
+        ...result.breakdown,
+        keywords_found: result.keywords.tech,
+        soft_skills_found: result.keywords.soft,
+        sections: result.sections,
+        contact: result.contact,
+        overall_score: result.overall,
+        suggestions,
+        ai_powered: aiTips.length > 0,
+        created_at: new Date().toISOString()
+      };
+      ResumeDB.addReport(report);
+      ResumeDB.updateResumeScore(resume.resume_id, result.overall);
+
+      // 5. redirect
+      window.location.href = `report.html?id=${resume.resume_id}`;
+
+    } catch(err) {
+      hideLoading();
+      document.getElementById('analyze-btn').disabled = false;
+      errBox.textContent = 'Something went wrong: ' + err.message;
+      errBox.classList.remove('hidden');
+    }
+  }
+</script>
+</body>
+</html>

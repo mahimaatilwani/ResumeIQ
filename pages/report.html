@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Analysis Report — ResumeIQ</title>
+  <link rel="stylesheet" href="../css/style.css"/>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+</head>
+<body>
+
+<nav class="nav" id="main-nav"></nav>
+
+<div class="page-wrap">
+  <div class="page-header flex-between" style="flex-wrap:wrap;gap:1rem">
+    <div>
+      <div class="page-title" id="report-title">Analysis Report</div>
+      <div class="page-subtitle" id="report-meta"></div>
+    </div>
+    <div class="flex gap-1">
+      <a href="upload.html" class="btn btn-primary btn-sm">Re-analyze</a>
+      <a href="dashboard.html" class="btn btn-outline btn-sm">← Dashboard</a>
+    </div>
+  </div>
+
+  <div class="report-layout" id="report-body">
+    <!-- Sidebar -->
+    <div class="report-sidebar">
+      <!-- Score ring -->
+      <div class="card text-center mb-2">
+        <div style="font-size:0.8rem;color:var(--white-dim);margin-bottom:1rem;text-transform:uppercase;letter-spacing:.05em">ATS Score</div>
+        <div id="score-ring-container" style="display:flex;justify-content:center;margin-bottom:1rem"></div>
+        <div id="score-label" class="badge mb-1" style="margin:0 auto 0.5rem"></div>
+        <div id="ai-badge" class="badge badge-cyan hidden" style="margin:0 auto">🤖 AI-powered</div>
+      </div>
+
+      <!-- Score breakdown bars -->
+      <div class="card mb-2">
+        <h3 style="font-size:0.9rem;font-weight:600;margin-bottom:1rem">Score Breakdown</h3>
+        <div id="progress-bars"></div>
+      </div>
+
+      <!-- Sections found -->
+      <div class="card">
+        <h3 style="font-size:0.9rem;font-weight:600;margin-bottom:0.75rem">Sections Found</h3>
+        <div id="section-chips"></div>
+      </div>
+    </div>
+
+    <!-- Main content -->
+    <div>
+      <!-- Radar chart -->
+      <div class="card mb-2">
+        <h3 style="font-size:1rem;font-weight:600;margin-bottom:1rem">Score Radar</h3>
+        <div style="position:relative;height:300px">
+          <canvas id="radar-chart" role="img" aria-label="Radar chart of ATS score breakdown across 8 criteria"></canvas>
+        </div>
+      </div>
+
+      <!-- Contact details -->
+      <div class="card mb-2">
+        <h3 style="font-size:1rem;font-weight:600;margin-bottom:1rem">Contact Info Check</h3>
+        <div class="grid-2" id="contact-grid"></div>
+      </div>
+
+      <!-- Keywords -->
+      <div class="card mb-2">
+        <h3 style="font-size:1rem;font-weight:600;margin-bottom:1rem">Keywords Detected</h3>
+        <div style="margin-bottom:1rem">
+          <div class="form-label mb-1">Technical Skills</div>
+          <div id="tech-keywords"></div>
+        </div>
+        <div>
+          <div class="form-label mb-1">Soft Skills</div>
+          <div id="soft-keywords"></div>
+        </div>
+      </div>
+
+      <!-- Suggestions -->
+      <div class="card">
+        <div class="flex-between mb-2">
+          <h3 style="font-size:1rem;font-weight:600">Improvement Suggestions</h3>
+          <span id="suggestion-count" class="badge badge-warning"></span>
+        </div>
+        <div id="suggestions-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="not-found" class="text-center hidden" style="padding:4rem 2rem">
+    <div style="font-size:2.5rem;margin-bottom:1rem">🔍</div>
+    <h3 style="margin-bottom:8px">Report not found</h3>
+    <p class="text-muted mb-2">This resume may have been deleted or doesn't exist.</p>
+    <a href="dashboard.html" class="btn btn-primary">Go to Dashboard</a>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+
+<script src="../js/auth.js"></script>
+<script src="../js/resume.js"></script>
+<script src="../js/utils.js"></script>
+<script>
+  if (!Auth.requireAuth()) throw new Error('not auth');
+  injectNav();
+
+  const params = new URLSearchParams(window.location.search);
+  const resumeId = params.get('id');
+
+  if (!resumeId) {
+    document.getElementById('report-body').classList.add('hidden');
+    document.getElementById('not-found').classList.remove('hidden');
+  } else {
+    const resume = ResumeDB.getResumeById(resumeId);
+    const report = ResumeDB.getReportByResumeId(resumeId);
+
+    if (!resume || !report) {
+      document.getElementById('report-body').classList.add('hidden');
+      document.getElementById('not-found').classList.remove('hidden');
+    } else {
+      renderReport(resume, report);
+    }
+  }
+
+  function renderReport(resume, report) {
+    // header
+    document.getElementById('report-title').textContent = resume.resume_name;
+    document.getElementById('report-meta').textContent =
+      `Analyzed on ${formatDate(report.created_at || resume.upload_date)}`;
+
+    // score ring
+    renderScoreRing('score-ring-container', report.overall_score, 130);
+
+    // score label badge
+    const sl = document.getElementById('score-label');
+    sl.textContent = scoreLabel(report.overall_score);
+    sl.className = `badge ${scoreBadgeClass(report.overall_score)}`;
+
+    // AI badge
+    if (report.ai_powered) {
+      document.getElementById('ai-badge').classList.remove('hidden');
+    }
+
+    // progress bars
+    const breakdown = {};
+    ['contact','education','skills','experience','projects','certifications','keywords','formatting'].forEach(k => {
+      if (report[k]) breakdown[k] = report[k];
+    });
+    renderProgressBars('progress-bars', breakdown);
+
+    // section chips
+    renderSectionChips('section-chips', report.sections || {});
+
+    // radar chart
+    renderRadar(report);
+
+    // contact grid
+    const c = report.contact || {};
+    document.getElementById('contact-grid').innerHTML = [
+      ['📧 Email',    c.hasEmail],
+      ['📱 Phone',    c.hasPhone],
+      ['💼 LinkedIn', c.hasLinkedIn],
+      ['🐙 GitHub',   c.hasGitHub],
+    ].map(([label, found]) => `
+      <div style="display:flex;align-items:center;gap:8px;padding:8px 0">
+        <span style="color:${found ? 'var(--success)' : 'var(--danger)'};font-size:1rem">${found ? '✓' : '✕'}</span>
+        <span class="text-sm ${found ? '' : 'text-muted'}">${label}</span>
+      </div>`).join('');
+
+    // tech keywords
+    const tech = report.keywords_found || [];
+    document.getElementById('tech-keywords').innerHTML = tech.length
+      ? tech.map(k => `<span class="badge badge-cyan" style="margin:3px">${k}</span>`).join('')
+      : '<span class="text-muted text-sm">No technical keywords detected.</span>';
+
+    const soft = report.soft_skills_found || [];
+    document.getElementById('soft-keywords').innerHTML = soft.length
+      ? soft.map(k => `<span class="badge badge-success" style="margin:3px">${k}</span>`).join('')
+      : '<span class="text-muted text-sm">No soft skills detected.</span>';
+
+    // suggestions
+    const suggs = report.suggestions || [];
+    document.getElementById('suggestion-count').textContent = `${suggs.length} tips`;
+    document.getElementById('suggestions-list').innerHTML = suggs.length
+      ? suggs.map((s, i) => `
+          <div class="suggestion-item">
+            <div class="suggestion-icon">💡</div>
+            <div>
+              <div style="font-weight:500;font-size:0.8rem;color:var(--warning);margin-bottom:3px">Tip ${i+1}</div>
+              <div class="text-sm">${s}</div>
+            </div>
+          </div>`).join('')
+      : '<div class="text-muted text-sm">No suggestions — great job!</div>';
+  }
+
+  function renderRadar(report) {
+    const labels = ['Contact','Education','Skills','Experience','Projects','Certs','Keywords','Formatting'];
+    const keys   = ['contact','education','skills','experience','projects','certifications','keywords','formatting'];
+    const scores = keys.map(k => {
+      const item = report[k];
+      if (!item) return 0;
+      return Math.round((item.score / item.max) * 100);
+    });
+
+    new Chart(document.getElementById('radar-chart'), {
+      type: 'radar',
+      data: {
+        labels,
+        datasets: [{
+          label: 'Your Score',
+          data: scores,
+          backgroundColor: 'rgba(0,212,255,0.1)',
+          borderColor: '#00D4FF',
+          borderWidth: 2,
+          pointBackgroundColor: '#00D4FF',
+          pointRadius: 4,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          r: {
+            min: 0, max: 100,
+            ticks: { stepSize: 25, color: '#A8B8D8', font: { size: 10 }, backdropColor: 'transparent' },
+            grid: { color: 'rgba(255,255,255,0.08)' },
+            angleLines: { color: 'rgba(255,255,255,0.08)' },
+            pointLabels: { color: '#F0F4FF', font: { size: 11, family: 'Inter' } }
+          }
+        }
+      }
+    });
+  }
+</script>
+</body>
+</html>

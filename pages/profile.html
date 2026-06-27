@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Profile — ResumeIQ</title>
+  <link rel="stylesheet" href="../css/style.css"/>
+</head>
+<body>
+
+<nav class="nav" id="main-nav"></nav>
+
+<div class="page-wrap" style="max-width:700px">
+  <div class="page-header">
+    <div class="page-title">Profile & Settings</div>
+    <div class="page-subtitle">Manage your account and configure AI features.</div>
+  </div>
+
+  <!-- Account info -->
+  <div class="card mb-2">
+    <h3 style="font-size:1rem;font-weight:600;margin-bottom:1.25rem">Account</h3>
+    <div class="flex-center gap-2 mb-3">
+      <div style="width:56px;height:56px;border-radius:50%;background:rgba(0,212,255,0.15);
+                  display:flex;align-items:center;justify-content:center;
+                  font-family:var(--font-display);font-size:1.2rem;font-weight:700;color:var(--cyan)"
+           id="avatar-initials">??</div>
+      <div>
+        <div style="font-weight:600;font-size:1rem" id="profile-name">—</div>
+        <div class="text-muted text-sm" id="profile-email">—</div>
+        <div class="mt-1" id="profile-role"></div>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Display name</label>
+      <input type="text" id="edit-name" class="form-input"/>
+    </div>
+
+    <button class="btn btn-primary btn-sm" onclick="saveName()">Save name</button>
+  </div>
+
+  <!-- API Key -->
+  <div class="card mb-2" style="border-color:rgba(0,212,255,0.25)">
+    <h3 style="font-size:1rem;font-weight:600;margin-bottom:0.5rem">🤖 Anthropic API Key</h3>
+    <p class="text-muted text-sm mb-2">
+      Add your Anthropic API key to enable Claude AI-powered resume suggestions.
+      The key is stored only in your browser and never sent anywhere except Anthropic's API.
+    </p>
+
+    <div class="alert alert-info mb-2">
+      Get a free API key at <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">API key</label>
+      <div class="flex gap-1">
+        <input type="password" id="api-key-input" class="form-input" placeholder="sk-ant-api03-…"/>
+        <button class="btn btn-outline btn-sm" onclick="toggleKeyVisibility()" id="toggle-key-btn" style="white-space:nowrap">Show</button>
+      </div>
+    </div>
+
+    <div class="flex gap-1">
+      <button class="btn btn-primary btn-sm" onclick="saveApiKey()">Save key</button>
+      <button class="btn btn-danger btn-sm" onclick="clearApiKey()">Remove key</button>
+    </div>
+
+    <div id="api-key-status" class="mt-2"></div>
+  </div>
+
+  <!-- Stats -->
+  <div class="card mb-2">
+    <h3 style="font-size:1rem;font-weight:600;margin-bottom:1rem">Your Stats</h3>
+    <div class="grid-3">
+      <div class="stat-card">
+        <div class="stat-label">Resumes</div>
+        <div class="stat-value" id="stat-resumes">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Best Score</div>
+        <div class="stat-value" id="stat-best" style="color:var(--success)">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Member Since</div>
+        <div class="stat-value" style="font-size:1rem" id="stat-since">—</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Danger zone -->
+  <div class="card" style="border-color:rgba(239,68,68,0.25)">
+    <h3 style="font-size:1rem;font-weight:600;margin-bottom:0.5rem;color:var(--danger)">Danger Zone</h3>
+    <p class="text-muted text-sm mb-2">Sign out of your account on this device.</p>
+    <button class="btn btn-danger btn-sm" onclick="Auth.logout()">Sign out</button>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+
+<script src="../js/auth.js"></script>
+<script src="../js/resume.js"></script>
+<script src="../js/analyzer.js"></script>
+<script src="../js/utils.js"></script>
+<script>
+  if (!Auth.requireAuth()) throw new Error('not auth');
+  injectNav();
+
+  const session = Auth.getSession();
+  const user = Auth.getUserById(session.userId);
+
+  // populate fields
+  document.getElementById('profile-name').textContent  = user.name;
+  document.getElementById('profile-email').textContent = user.email;
+  document.getElementById('edit-name').value           = user.name;
+  document.getElementById('avatar-initials').textContent = user.name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+  document.getElementById('profile-role').innerHTML = user.role === 'admin'
+    ? '<span class="badge badge-cyan">Admin</span>' : '<span class="badge" style="background:rgba(255,255,255,0.08);color:var(--white-dim)">User</span>';
+
+  document.getElementById('stat-since').textContent = formatDate(user.created_at);
+
+  // stats
+  const resumes = ResumeDB.getResumesByUser(session.userId);
+  const scores  = resumes.filter(r=>r.ats_score!==null).map(r=>r.ats_score);
+  document.getElementById('stat-resumes').textContent = resumes.length;
+  document.getElementById('stat-best').textContent    = scores.length ? Math.max(...scores) : '—';
+
+  // API key
+  const existingKey = Config.getApiKey();
+  if (existingKey) {
+    document.getElementById('api-key-input').value = existingKey;
+    document.getElementById('api-key-status').innerHTML = '<span class="badge badge-success">✓ API key saved</span>';
+  }
+
+  function toggleKeyVisibility() {
+    const inp = document.getElementById('api-key-input');
+    const btn = document.getElementById('toggle-key-btn');
+    if (inp.type === 'password') { inp.type = 'text'; btn.textContent = 'Hide'; }
+    else { inp.type = 'password'; btn.textContent = 'Show'; }
+  }
+
+  function saveApiKey() {
+    const key = document.getElementById('api-key-input').value.trim();
+    if (!key) { showToast('Enter an API key first.', 'error'); return; }
+    if (!key.startsWith('sk-ant')) { showToast('That doesn\'t look like a valid Anthropic key.', 'error'); return; }
+    Config.setApiKey(key);
+    document.getElementById('api-key-status').innerHTML = '<span class="badge badge-success">✓ API key saved</span>';
+    showToast('API key saved!', 'success');
+  }
+
+  function clearApiKey() {
+    Config.setApiKey('');
+    document.getElementById('api-key-input').value = '';
+    document.getElementById('api-key-status').innerHTML = '<span class="badge badge-danger">Key removed</span>';
+    showToast('API key removed.', 'info');
+  }
+
+  function saveName() {
+    const newName = document.getElementById('edit-name').value.trim();
+    if (!newName) { showToast('Name cannot be empty.', 'error'); return; }
+    const users = JSON.parse(localStorage.getItem('resumeiq_users') || '[]');
+    const idx = users.findIndex(u => u.id === session.userId);
+    if (idx !== -1) { users[idx].name = newName; localStorage.setItem('resumeiq_users', JSON.stringify(users)); }
+    document.getElementById('profile-name').textContent = newName;
+    showToast('Name updated!', 'success');
+  }
+</script>
+</body>
+</html>

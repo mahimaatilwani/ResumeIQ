@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Create Account — ResumeIQ</title>
+  <link rel="stylesheet" href="../css/style.css"/>
+</head>
+<body>
+<div class="auth-wrap">
+  <div class="auth-card">
+    <div class="auth-logo"><span>Resume</span>IQ</div>
+    <div class="auth-tagline">Create your free account</div>
+
+    <div id="error-box" class="alert alert-danger hidden"></div>
+
+    <div class="form-group">
+      <label class="form-label">Full name</label>
+      <input type="text" id="name" class="form-input" placeholder="Riya Sharma"/>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Email address</label>
+      <input type="email" id="email" class="form-input" placeholder="you@example.com"/>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Password</label>
+      <input type="password" id="password" class="form-input" placeholder="Min 6 characters"/>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Confirm password</label>
+      <input type="password" id="confirm" class="form-input" placeholder="Repeat password"/>
+    </div>
+
+    <button class="btn btn-primary btn-full btn-lg" onclick="doRegister()">Create account</button>
+
+    <div class="auth-divider">or</div>
+
+    <p class="text-center text-sm" style="color:var(--white-dim)">
+      Already have an account? <a href="login.html">Sign in</a>
+    </p>
+  </div>
+</div>
+
+<script src="../js/auth.js"></script>
+<script>
+  Auth.requireGuest('../pages/dashboard.html');
+
+  document.addEventListener('keydown', e => { if (e.key === 'Enter') doRegister(); });
+
+  function doRegister() {
+    const name     = document.getElementById('name').value.trim();
+    const email    = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value;
+    const confirm  = document.getElementById('confirm').value;
+    const errBox   = document.getElementById('error-box');
+    errBox.classList.add('hidden');
+
+    if (!name || !email || !password || !confirm) {
+      errBox.textContent = 'Please fill in all fields.';
+      errBox.classList.remove('hidden');
+      return;
+    }
+    if (password.length < 6) {
+      errBox.textContent = 'Password must be at least 6 characters.';
+      errBox.classList.remove('hidden');
+      return;
+    }
+    if (password !== confirm) {
+      errBox.textContent = 'Passwords do not match.';
+      errBox.classList.remove('hidden');
+      return;
+    }
+
+    const result = Auth.register(name, email, password);
+    if (!result.ok) {
+      errBox.textContent = result.error;
+      errBox.classList.remove('hidden');
+      return;
+    }
+
+    Auth.login(email, password);
+    window.location.href = 'dashboard.html';
+  }
+</script>
+</body>
+</html>
