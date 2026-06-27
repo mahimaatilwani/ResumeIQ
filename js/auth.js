@@ -23,7 +23,7 @@ const Auth = (() => {
       email,
       password, // plain text — fine for a demo/local app
       created_at: new Date().toISOString(),
-      role: email === 'admin@resumeiq.in' ? 'admin' : 'mahima@13'
+      role: email === 'admin@resumeiq.com' ? 'admin' : 'user'
     };
     users.push(user);
     saveUsers(users);
@@ -82,7 +82,7 @@ const Auth = (() => {
   function init() {
     const users = getUsers();
     if (!users.find(u => u.email === 'admin@resumeiq.com')) {
-      register('Admin', 'admin@resumeiq.com', 'admin123');
+      register('Admin', 'admin@resumeiq.com', 'changeme');
     }
   }
 
