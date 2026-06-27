@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Admin Panel — ResumeIQ</title>
+  <link rel="stylesheet" href="../css/style.css"/>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+</head>
+<body>
+
+<nav class="nav" id="main-nav"></nav>
+
+<div class="page-wrap">
+  <div class="page-header">
+    <div class="page-title">Admin Panel 🛡️</div>
+    <div class="page-subtitle">Overview of all users, resumes, and scores.</div>
+  </div>
+
+  <!-- Stats -->
+  <div class="grid-4 mb-3">
+    <div class="stat-card">
+      <div class="stat-label">Total Users</div>
+      <div class="stat-value" id="stat-users">0</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Total Resumes</div>
+      <div class="stat-value" id="stat-resumes">0</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Avg ATS Score</div>
+      <div class="stat-value" id="stat-avg">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Top Score</div>
+      <div class="stat-value" id="stat-top" style="color:var(--success)">—</div>
+    </div>
+  </div>
+
+  <!-- Charts row -->
+  <div class="grid-2 mb-3">
+    <div class="card">
+      <h3 style="font-size:0.95rem;font-weight:600;margin-bottom:1rem">Score Distribution</h3>
+      <div style="position:relative;height:220px">
+        <canvas id="score-chart"></canvas>
+      </div>
+    </div>
+    <div class="card">
+      <h3 style="font-size:0.95rem;font-weight:600;margin-bottom:1rem">Uploads Over Time</h3>
+      <div style="position:relative;height:220px">
+        <canvas id="upload-chart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Users table -->
+  <div class="card mb-3" style="padding:0">
+    <div class="flex-between" style="padding:1.25rem 1.5rem;border-bottom:1px solid var(--border-soft)">
+      <h2 style="font-size:1rem;font-weight:600">All Users</h2>
+      <input type="text" id="user-search" class="form-input" placeholder="Search by name or email…"
+             style="max-width:240px;padding:6px 12px;font-size:0.85rem" oninput="filterUsers()"/>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Email</th>
+            <th>Role</th>
+            <th>Joined</th>
+            <th>Resumes</th>
+            <th>Best Score</th>
+            <th style="text-align:right">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="users-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- All Resumes table -->
+  <div class="card" style="padding:0">
+    <div class="flex-between" style="padding:1.25rem 1.5rem;border-bottom:1px solid var(--border-soft)">
+      <h2 style="font-size:1rem;font-weight:600">All Resumes</h2>
+      <input type="text" id="resume-search" class="form-input" placeholder="Search resumes…"
+             style="max-width:240px;padding:6px 12px;font-size:0.85rem" oninput="filterResumes()"/>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Resume Name</th>
+            <th>Owner</th>
+            <th>Uploaded</th>
+            <th>ATS Score</th>
+            <th style="text-align:right">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="resumes-tbody"></tbody>
+      </table>
+    </div>
+    <div id="no-resumes" class="text-center hidden" style="padding:3rem">
+      <div style="font-size:2rem;margin-bottom:0.5rem">📄</div>
+      <p class="text-muted">No resumes uploaded yet.</p>
+    </div>
+  </div>
+</div>
+
+<!-- Delete user modal -->
+<div class="modal-overlay hidden" id="delete-user-modal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('delete-user-modal')">✕</button>
+    <h3 style="margin-bottom:8px">Delete user?</h3>
+    <p class="text-muted text-sm mb-2">This will delete the user account. Their resumes will remain.</p>
+    <div class="flex gap-2">
+      <button class="btn btn-danger btn-full" onclick="confirmDeleteUser()">Delete</button>
+      <button class="btn btn-outline btn-full" onclick="closeModal('delete-user-modal')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Delete resume modal -->
+<div class="modal-overlay hidden" id="delete-resume-modal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('delete-resume-modal')">✕</button>
+    <h3 style="margin-bottom:8px">Delete resume?</h3>
+    <p class="text-muted text-sm mb-2">This will permanently delete the resume and its report.</p>
+    <div class="flex gap-2">
+      <button class="btn btn-danger btn-full" onclick="confirmDeleteResume()">Delete</button>
+      <button class="btn btn-outline btn-full" onclick="closeModal('delete-resume-modal')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+
+<script src="../js/auth.js"></script>
+<script src="../js/resume.js"></script>
+<script src="../js/utils.js"></script>
+<script>
+  // Admin only
+  if (!Auth.requireAuth()) throw new Error('not auth');
+  const session = Auth.getSession();
+  if (session.role !== 'admin') {
+    window.location.href = 'dashboard.html';
+  }
+
+  injectNav();
+
+  let allUsers = [];
+  let allResumes = [];
+  let deleteUserTarget = null;
+  let deleteResumeTarget = null;
+
+  function load() {
+    allUsers   = Auth.getAllUsers();
+    allResumes = ResumeDB.getAllResumes();
+
+    // stats
+    const scores = allResumes.filter(r => r.ats_score !== null).map(r => r.ats_score);
+    document.getElementById('stat-users').textContent   = allUsers.length;
+    document.getElementById('stat-resumes').textContent = allResumes.length;
+    document.getElementById('stat-avg').textContent     = scores.length ? Math.round(scores.reduce((a,b)=>a+b,0)/scores.length) : '—';
+    document.getElementById('stat-top').textContent     = scores.length ? Math.max(...scores) : '—';
+
+    renderUsers(allUsers);
+    renderResumes(allResumes);
+    renderCharts(scores, allResumes);
+  }
+
+  function renderUsers(users) {
+    const tbody = document.getElementById('users-tbody');
+    if (!users.length) {
+      tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted" style="padding:2rem">No users found.</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = users.map(u => {
+      const userResumes = allResumes.filter(r => r.user_id === u.id);
+      const scores = userResumes.filter(r => r.ats_score !== null).map(r => r.ats_score);
+      const best = scores.length ? Math.max(...scores) : null;
+      const isCurrentUser = u.id === session.userId;
+
+      return `<tr>
+        <td>
+          <div style="display:flex;align-items:center;gap:8px">
+            <div style="width:30px;height:30px;border-radius:50%;background:rgba(0,212,255,0.15);
+                        display:flex;align-items:center;justify-content:center;
+                        font-size:0.75rem;font-weight:700;color:var(--cyan);flex-shrink:0">
+              ${u.name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()}
+            </div>
+            <span style="font-weight:500">${u.name}</span>
+            ${isCurrentUser ? '<span class="badge badge-cyan" style="font-size:0.7rem">You</span>' : ''}
+          </div>
+        </td>
+        <td class="text-muted text-sm">${u.email}</td>
+        <td><span class="badge ${u.role === 'admin' ? 'badge-cyan' : ''}" style="${u.role !== 'admin' ? 'background:rgba(255,255,255,0.08);color:var(--white-dim)' : ''}">${u.role}</span></td>
+        <td class="text-muted text-sm">${formatDate(u.created_at)}</td>
+        <td><span style="font-weight:600">${userResumes.length}</span></td>
+        <td>${best !== null ? `<span style="color:${scoreColor(best)};font-weight:600">${best}</span>` : '<span class="text-muted">—</span>'}</td>
+        <td style="text-align:right">
+          ${!isCurrentUser ? `<button class="btn btn-danger btn-sm" onclick="openDeleteUser('${u.id}')">Delete</button>` : '<span class="text-muted text-xs">—</span>'}
+        </td>
+      </tr>`;
+    }).join('');
+  }
+
+  function renderResumes(resumes) {
+    const tbody = document.getElementById('resumes-tbody');
+    const noMsg = document.getElementById('no-resumes');
+
+    if (!resumes.length) {
+      tbody.innerHTML = '';
+      noMsg.classList.remove('hidden');
+      return;
+    }
+    noMsg.classList.add('hidden');
+
+    tbody.innerHTML = resumes.map(r => {
+      const owner = allUsers.find(u => u.id === r.user_id);
+      const score = r.ats_score;
+      return `<tr>
+        <td style="font-weight:500">${r.resume_name}</td>
+        <td>
+          <div class="text-sm">${owner ? owner.name : 'Unknown'}</div>
+          <div class="text-xs text-muted">${owner ? owner.email : ''}</div>
+        </td>
+        <td class="text-muted text-sm">${formatDate(r.upload_date)}</td>
+        <td>
+          ${score !== null
+            ? `<span style="font-weight:600;color:${scoreColor(score)}">${score}</span><span class="text-muted text-xs">/100</span>
+               <span class="badge ${scoreBadgeClass(score)}" style="margin-left:6px">${scoreLabel(score)}</span>`
+            : '<span class="text-muted text-xs">Pending</span>'}
+        </td>
+        <td style="text-align:right">
+          <div class="flex gap-1" style="justify-content:flex-end">
+            ${score !== null ? `<a href="report.html?id=${r.resume_id}" class="btn btn-outline btn-sm">View report</a>` : ''}
+            <button class="btn btn-danger btn-sm" onclick="openDeleteResume('${r.resume_id}')">Delete</button>
+          </div>
+        </td>
+      </tr>`;
+    }).join('');
+  }
+
+  function renderCharts(scores, resumes) {
+    // Score distribution bar chart
+    const bands = { '0–40': 0, '41–60': 0, '61–75': 0, '76–85': 0, '86–100': 0 };
+    scores.forEach(s => {
+      if (s <= 40) bands['0–40']++;
+      else if (s <= 60) bands['41–60']++;
+      else if (s <= 75) bands['61–75']++;
+      else if (s <= 85) bands['76–85']++;
+      else bands['86–100']++;
+    });
+
+    new Chart(document.getElementById('score-chart'), {
+      type: 'bar',
+      data: {
+        labels: Object.keys(bands),
+        datasets: [{
+          data: Object.values(bands),
+          backgroundColor: ['#EF4444','#F59E0B','#F59E0B','#22C55E','#00D4FF'],
+          borderRadius: 6,
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { color: '#A8B8D8', font: { size: 11 } }, grid: { display: false } },
+          y: { ticks: { color: '#A8B8D8', font: { size: 11 }, stepSize: 1 }, grid: { color: 'rgba(255,255,255,0.05)' } }
+        }
+      }
+    });
+
+    // Uploads over time (last 7 days)
+    const days = [];
+    const counts = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const label = d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+      const dateStr = d.toISOString().split('T')[0];
+      days.push(label);
+      counts.push(resumes.filter(r => r.upload_date.startsWith(dateStr)).length);
+    }
+
+    new Chart(document.getElementById('upload-chart'), {
+      type: 'line',
+      data: {
+        labels: days,
+        datasets: [{
+          data: counts,
+          borderColor: '#00D4FF',
+          backgroundColor: 'rgba(0,212,255,0.08)',
+          fill: true,
+          tension: 0.4,
+          pointBackgroundColor: '#00D4FF',
+          pointRadius: 4,
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { color: '#A8B8D8', font: { size: 11 } }, grid: { display: false } },
+          y: { ticks: { color: '#A8B8D8', font: { size: 11 }, stepSize: 1 }, grid: { color: 'rgba(255,255,255,0.05)' } }
+        }
+      }
+    });
+  }
+
+  // Search
+  function filterUsers() {
+    const q = document.getElementById('user-search').value.toLowerCase();
+    renderUsers(allUsers.filter(u => u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q)));
+  }
+
+  function filterResumes() {
+    const q = document.getElementById('resume-search').value.toLowerCase();
+    renderResumes(allResumes.filter(r => r.resume_name.toLowerCase().includes(q)));
+  }
+
+  // Delete user
+  function openDeleteUser(id) {
+    deleteUserTarget = id;
+    document.getElementById('delete-user-modal').classList.remove('hidden');
+  }
+
+  function confirmDeleteUser() {
+    if (!deleteUserTarget) return;
+    Auth.deleteUser(deleteUserTarget);
+    closeModal('delete-user-modal');
+    showToast('User deleted.', 'success');
+    load();
+  }
+
+  // Delete resume
+  function openDeleteResume(id) {
+    deleteResumeTarget = id;
+    document.getElementById('delete-resume-modal').classList.remove('hidden');
+  }
+
+  function confirmDeleteResume() {
+    if (!deleteResumeTarget) return;
+    ResumeDB.deleteResume(deleteResumeTarget);
+    closeModal('delete-resume-modal');
+    showToast('Resume deleted.', 'success');
+    load();
+  }
+
+  function closeModal(id) {
+    document.getElementById(id).classList.add('hidden');
+    deleteUserTarget = null;
+    deleteResumeTarget = null;
+  }
+
+  load();
+</script>
+</body>
+</html>
