@@ -23,7 +23,7 @@ const Auth = (() => {
       email,
       password, // plain text — fine for a demo/local app
       created_at: new Date().toISOString(),
-      role: email === 'admin@resumeiq.com' ? 'admin' : 'user'
+      role: email === 'admin@resumeiq.in' ? 'admin' : 'mahima@13'
     };
     users.push(user);
     saveUsers(users);
