@@ -1,92 +1,78 @@
 # ResumeIQ — ATS Resume Analyzer
 
-> Analyze. Improve. Get Interview Ready.
+> ⚠️ This is a portfolio/demo project built for learning purposes. Data is stored in browser localStorage only — not a real database.
 
-A fully client-side ATS resume analyzer built with vanilla HTML, CSS, and JavaScript. No backend required.
+**Live Demo:** [mahimaatilwani.github.io/ResumeIQ](https://mahimaatilwani.github.io/ResumeIQ)
 
 ---
 
-## 🚀 Quick Start
+## About
 
-### Option 1 — Local server (recommended)
+ResumeIQ is a client-side ATS (Applicant Tracking System) resume analyzer. Upload your resume and instantly get a score out of 100, section-by-section feedback, keyword analysis, and improvement suggestions.
 
-**With Node.js:**
+---
+
+## Features
+
+- ATS score out of 100 across 8 criteria
+- Section detection — Contact, Education, Experience, Skills, Projects, Certifications, Achievements
+- Keyword analysis — 40+ technical skills, 14+ soft skills
+- Radar chart visualization
+- AI-powered suggestions via Claude API (optional)
+- Resume history and report tracking
+- Admin panel with user and resume management
+- 100% browser-based — no server or database required
+
+---
+
+## Tech Stack
+
+- HTML5, CSS3, Vanilla JavaScript
+- Chart.js for data visualization
+- Anthropic Claude API (optional, for AI suggestions)
+- localStorage for data persistence
+- GitHub Pages for hosting
+
+---
+
+## How to Run Locally
+
 ```bash
+# Using Node.js
 npx serve .
-# Open http://localhost:3000
-```
 
-**With Python:**
-```bash
+# Using Python
 python -m http.server 8080
-# Open http://localhost:8080
 ```
 
-### Option 2 — GitHub Pages (free hosting)
-
-1. Push this folder to a GitHub repository
-2. Go to **Settings → Pages → Source → main → / (root)**
-3. Access at `https://yourusername.github.io/repo-name`
+Then open `http://localhost:3000` in your browser.
 
 ---
 
-## 🔑 Default Admin Account
+## Project Structure
 
 ```
-
-```
-
----
-
-## 🤖 AI Suggestions (optional)
-
-To enable Claude AI-powered resume tips:
-1. Get a free API key at https://console.anthropic.com
-2. Sign in → Profile → Paste your key → Save
-
-Without a key, rule-based suggestions still work perfectly.
-
----
-
-## 📁 Project Structure
-
-```
-resumeiq/
-├── index.html          # Landing page
+ResumeIQ/
+├── index.html         # Landing page
 ├── css/
-│   └── style.css       # All styles
+│   └── style.css      # All styles
 ├── js/
-│   ├── auth.js         # Auth (localStorage)
-│   ├── resume.js       # Resume & report storage
-│   ├── analyzer.js     # ATS scoring engine + Claude API
-│   └── utils.js        # UI helpers (toasts, charts, etc.)
+│   ├── auth.js        # Authentication
+│   ├── resume.js      # Resume storage
+│   ├── analyzer.js    # ATS scoring engine
+│   └── utils.js       # UI helpers
 └── pages/
     ├── login.html
     ├── register.html
     ├── dashboard.html
     ├── upload.html
     ├── report.html
-    └── profile.html
+    ├── profile.html
+    └── admin.html
 ```
 
 ---
 
-## ✨ Features
+## Built By
 
-- ATS score out of 100 across 8 criteria
-- Section detection (Contact, Education, Experience, Skills, Projects, Certifications, Achievements)
-- Keyword analysis (40+ tech skills, 14 soft skills)
-- Radar chart visualization (Chart.js)
-- AI-powered suggestions via Claude API
-- Resume history & report tracking
-- Admin account with user overview
-- 100% browser-based — no server, no database
-
----
-
-## 🛠 Tech Stack
-
-- HTML5, CSS3, Vanilla JavaScript
-- Chart.js (radar chart)
-- localStorage / sessionStorage (data persistence)
-- Anthropic Claude API (optional AI suggestions)
+Mahima Atilwani — [GitHub](https://github.com/mahimaatilwani)
