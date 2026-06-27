@@ -33,8 +33,7 @@ python -m http.server 8080
 ## 🔑 Default Admin Account
 
 ```
-Email:    admin@resumeiq.com
-Password: admin123
+
 ```
 
 ---
