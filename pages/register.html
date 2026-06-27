@@ -22,13 +22,27 @@
       <label class="form-label">Email address</label>
       <input type="email" id="email" class="form-input" placeholder="you@example.com"/>
     </div>
+
     <div class="form-group">
       <label class="form-label">Password</label>
-      <input type="password" id="password" class="form-input" placeholder="Min 6 characters"/>
+      <div style="position:relative">
+        <input type="password" id="password" class="form-input" placeholder="Min 6 characters" style="padding-right:48px"/>
+        <button type="button" onclick="togglePass('password','eye1')"
+                style="position:absolute;right:12px;top:50%;transform:translateY(-50%);
+                       background:none;border:none;cursor:pointer;color:var(--white-dim);
+                       font-size:1.1rem;line-height:1;padding:0" id="eye1">👁️</button>
+      </div>
     </div>
+
     <div class="form-group">
       <label class="form-label">Confirm password</label>
-      <input type="password" id="confirm" class="form-input" placeholder="Repeat password"/>
+      <div style="position:relative">
+        <input type="password" id="confirm" class="form-input" placeholder="Repeat password" style="padding-right:48px"/>
+        <button type="button" onclick="togglePass('confirm','eye2')"
+                style="position:absolute;right:12px;top:50%;transform:translateY(-50%);
+                       background:none;border:none;cursor:pointer;color:var(--white-dim);
+                       font-size:1.1rem;line-height:1;padding:0" id="eye2">👁️</button>
+      </div>
     </div>
 
     <button class="btn btn-primary btn-full btn-lg" onclick="doRegister()">Create account</button>
@@ -46,6 +60,18 @@
   Auth.requireGuest('../pages/dashboard.html');
 
   document.addEventListener('keydown', e => { if (e.key === 'Enter') doRegister(); });
+
+  function togglePass(inputId, btnId) {
+    const input = document.getElementById(inputId);
+    const btn   = document.getElementById(btnId);
+    if (input.type === 'password') {
+      input.type = 'text';
+      btn.textContent = '🙈';
+    } else {
+      input.type = 'password';
+      btn.textContent = '👁️';
+    }
+  }
 
   function doRegister() {
     const name     = document.getElementById('name').value.trim();

@@ -18,9 +18,18 @@
       <label class="form-label">Email address</label>
       <input type="email" id="email" class="form-input" placeholder="you@example.com" autocomplete="email"/>
     </div>
+
     <div class="form-group">
       <label class="form-label">Password</label>
-      <input type="password" id="password" class="form-input" placeholder="••••••••" autocomplete="current-password"/>
+      <div style="position:relative">
+        <input type="password" id="password" class="form-input" placeholder="••••••••"
+               autocomplete="current-password" style="padding-right:48px"/>
+        <button type="button" onclick="togglePassword()"
+                style="position:absolute;right:12px;top:50%;transform:translateY(-50%);
+                       background:none;border:none;cursor:pointer;color:var(--white-dim);
+                       font-size:1.1rem;line-height:1;padding:0"
+                id="eye-btn" title="Show password">👁️</button>
+      </div>
     </div>
 
     <button class="btn btn-primary btn-full btn-lg" id="login-btn" onclick="doLogin()">
@@ -32,11 +41,6 @@
     <p class="text-center text-sm" style="color:var(--white-dim)">
       Don't have an account? <a href="register.html">Create one</a>
     </p>
-
-    <hr class="divider"/>
-    <p class="text-center text-xs text-muted">
-      Demo admin: <strong>admin@resumeiq.com</strong> / <strong>admin123</strong>
-    </p>
   </div>
 </div>
 
@@ -45,6 +49,20 @@
   Auth.requireGuest('../pages/dashboard.html');
 
   document.addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+
+  function togglePassword() {
+    const input = document.getElementById('password');
+    const btn   = document.getElementById('eye-btn');
+    if (input.type === 'password') {
+      input.type = 'text';
+      btn.textContent = '🙈';
+      btn.title = 'Hide password';
+    } else {
+      input.type = 'password';
+      btn.textContent = '👁️';
+      btn.title = 'Show password';
+    }
+  }
 
   function doLogin() {
     const email    = document.getElementById('email').value.trim();
